@@ -1,6 +1,17 @@
 const app = require('express')();
 var http = require('http').createServer(app);
 var io = require('socket.io')(http);
+const Client = require('pg').Client;
+
+const client = new Client({
+  user: 'alex',
+  host: 'localhost',
+  database: 'chatroom',
+  password: 'b0bmba22',
+  port: 5432,
+})
+
+client.connect();
 
 
 
@@ -52,18 +63,28 @@ let update = {
     onlineUsers: onlineUsers
 }
 
+const getMessages = () => {
+    client.query("SELECT * FROM chat_log;")
+        .then(res => console.log(res.rows))
+        .catch(err => console.log('Database Error!'));
+}
+
+getMessages();
+
 app.get('/', function (req, res) {
-    res.send('Hello World')
+    res.send('Hello World');
 })
 
 io.on('connection', (socket) => {
     console.log('user connected');
-    setTimeout(() => io.emit('update', update), 5000);
     socket.on('authentication', (data) => {
-        console.log(io.clients());
-    })
+    });
+    socket.on('disconnect', (reason) => {
+        console.log('user has disconnected');
+    });
 })
    
 http.listen(3001, function(){
     console.log('listening on *:3001');
+    setInterval(() => io.emit('update', update), 5000);
 });
