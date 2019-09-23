@@ -27,8 +27,23 @@ const authenticate = (socket, data, callback) => {
         .catch(err => callback(new Error("User not found")));
 }
 
+const userAlreadyConnedted = (username, socID) => {
+    let {sockets} = io.sockets;
+    for(socketID in sockets){
+        if(socID !== socketID && sockets[socketID].client.user.username === username){
+            return true;
+        }
+    }
+    return false;
+}
+
 const postAuthenticate = (socket, data) => {
     let {username} = data;
+    if(userAlreadyConnedted(username, socket.id)) {
+        console.log('User already connected!!!!')
+        socket.disconnect(true);
+        return;
+    }
     // console.log(socket.client);
     client.query(`SELECT id FROM login WHERE username = '${username}';`)
         .then(res => {
@@ -36,6 +51,7 @@ const postAuthenticate = (socket, data) => {
                 username: username,
                 id: res.rows[0].id
             }
+            socket.emit('authentication', {auth: true});
         })
         .catch(err => callback(new Error("User not found")));
 }
