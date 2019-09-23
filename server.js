@@ -47,6 +47,7 @@ socketio_auth(io,{
 });
 
 let milist_last = new Date(Date.now());
+let  messageTS = new Date();
 let busy = false;
 
 let messages = [
@@ -105,17 +106,19 @@ const update = () => {
     }).catch(err => 'Error accessing database')
     .finally(() => busy = false);
 }
+
 const getNewMessages = () => {
-    const condition = `'${milist_last.getFullYear()}`+
+    const condition = `${milist_last.getFullYear()}`+
                        `-${milist_last.getMonth()}`+
                        `-${milist_last.getDate()}`+  
                        ` ${milist_last.getHours()}`+
                        `:${milist_last.getMinutes()}`+
                        `:${milist_last.getSeconds()}`+
-                       `.${milist_last.getMilliseconds()}'`;
-    console.log(condition);
+                       `.${milist_last.getMilliseconds().toString().padStart(3, '0')}`;
+    console.log('Update at ' + milist_last.getTime() + 'with condition: ' + condition)
     milist_last.setTime(Date.now());
-    return client.query(`SELECT message,username,id FROM chat_log WHERE time >= ${condition};`)
+    // console.log('Next update from ' + Date.now());
+    return client.query(`SELECT message,username,id FROM chat_log WHERE time >= '${condition}';`)
         .then(res => res.rows);
 }
 
@@ -135,7 +138,7 @@ app.get('/', function (req, res) {
 app.post('/register', function (req, res) {
     const {username, email, password} = req.body;
     const hash = bcrypt.hashSync(password, 10);
-    client.query(`INSERT INTO login (username, email, hash) VALUES ('${username}', '${email}', '${password}');`)
+    client.query(`INSERT INTO login (username, email, password) VALUES ('${username}', '${email}', '${hash}');`)
         .then(response => res.json({insertSuccessful: true}))
         .catch(err => res.status(400).json({insertSuccessful: false}));
 })
@@ -156,9 +159,27 @@ io.on('connection', (socket) => {
     socket.on('disconnect', (reason) => {
         console.log('user has disconnected');
     });
+
+    socket.on('message', (data) => {
+        let {message} = data;
+        let {username} = socket.client.user;
+        messageTS.setTime(Date.now());
+        console.log('Message time ' + Date.now());
+        const time = `${messageTS.getFullYear()}`+
+                       `-${messageTS.getMonth()}`+
+                       `-${messageTS.getDate()}`+  
+                       ` ${messageTS.getHours()}`+
+                       `:${messageTS.getMinutes()}`+
+                       `:${messageTS.getSeconds()}`+
+                       `.${messageTS.getMilliseconds().toString().padStart(3, '0')}`;
+        client.query(`INSERT INTO chat_log (username, message, time) VALUES ('${username}', '${message}', '${time}');`)
+            .then(res => {})
+            .catch(res => console.log('failed to insert message into database'));
+    })
 })
+
 
 http.listen(3002, function(){
     console.log('listening on *:3001');
-    setInterval(update, 500);       //odkomentiraj ko bo delalo --- posilja upadte na dolocen interval
+    setInterval(update, 50);       //odkomentiraj ko bo delalo --- posilja upadte na dolocen interval
 });
