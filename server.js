@@ -1,12 +1,15 @@
 const express = require('express');
 const app = express();
+const fs = require('fs');
 var http = require('http').createServer(app);
 var io = require('socket.io')(http);
 const Client = require('pg').Client;
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const socketio_auth = require('socketio-auth');
+const path = require('path');
 
+app.use(express.static(path.join(__dirname, 'build')));
 app.use(cors());
 app.use(express.json());
 
@@ -117,7 +120,7 @@ const update = () => {
             messages: messages,
             onlineUsers: getOnlineUsers()
         }
-        console.log(data)
+        // console.log(data)
         io.emit('update', data);
     }).catch(err => 'Error accessing database')
     .finally(() => busy = false);
@@ -131,7 +134,7 @@ const getNewMessages = () => {
                        `:${milist_last.getMinutes()}`+
                        `:${milist_last.getSeconds()}`+
                        `.${milist_last.getMilliseconds().toString().padStart(3, '0')}`;
-    console.log('Update at ' + milist_last.getTime() + 'with condition: ' + condition)
+    // console.log('Update at ' + milist_last.getTime() + 'with condition: ' + condition)
     milist_last.setTime(Date.now());
     // console.log('Next update from ' + Date.now());
     return client.query(`SELECT message,username,id FROM chat_log WHERE time >= '${condition}';`)
@@ -152,14 +155,23 @@ app.get('/', function (req, res) {
 })
 
 app.post('/register', function (req, res) {
+    console.log('register')
     const {username, email, password} = req.body;
+    if(username === '' || email === '' || password === ''){
+        return res.status(400).json({insertSuccessful: false});
+    }
     const hash = bcrypt.hashSync(password, 10);
     client.query(`INSERT INTO login (username, email, password) VALUES ('${username}', '${email}', '${hash}');`)
         .then(response => res.json({insertSuccessful: true}))
-        .catch(err => res.status(400).json({insertSuccessful: false}));
+        .catch(err => {
+            console.log(err.toString());
+            return res.status(400).json({insertSuccessful: false,
+                                        error: err.detail});
+        });
 })
 
 app.post('/login', function (req, res) {
+    console.log('login');
     const {username, password} = req.body;
     client.query(`SELECT * FROM login WHERE username = '${username}';`)
         .then(response => {
@@ -188,14 +200,14 @@ io.on('connection', (socket) => {
                        `:${messageTS.getMinutes()}`+
                        `:${messageTS.getSeconds()}`+
                        `.${messageTS.getMilliseconds().toString().padStart(3, '0')}`;
+                       console.log(message,username,time)
         client.query(`INSERT INTO chat_log (username, message, time) VALUES ('${username}', '${message}', '${time}');`)
             .then(res => {})
             .catch(res => console.log('failed to insert message into database'));
     })
 })
 
-
-http.listen(3002, function(){
+http.listen(3000, function(){
     console.log('listening on *:3001');
-    setInterval(update, 50);       //odkomentiraj ko bo delalo --- posilja upadte na dolocen interval
+    setInterval(update, 100);       //odkomentiraj ko bo delalo --- posilja upadte na dolocen interval
 });
